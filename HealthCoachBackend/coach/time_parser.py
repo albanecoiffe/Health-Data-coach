@@ -1,3 +1,10 @@
+# Rôle : comprendre le temps (crucial)
+# Il transforme : "le mois dernier"
+# en : start = 2025-11-01 & end   = 2025-11-30
+# C’est ce fichier qui : permet les snapshots dynamiques, évite d’envoyer TOUTES les données, rend le chat intelligent
+# C’est une brique très avancée, tu as fait un énorme pas ici.
+
+
 from dataclasses import dataclass
 from datetime import date
 import re

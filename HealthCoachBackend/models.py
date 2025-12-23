@@ -1,3 +1,9 @@
+# Rôle : contrat API (entrée)
+# Ce fichier définit ce que le frontend a le droit d’envoyer.
+# Typiquement : ChatRequest, WeeklySnapshot, PeriodSnapshot, Totals, etc.
+# C’est le contrat Swift ↔ Python
+
+
 from pydantic import BaseModel
 from datetime import date
 from typing import Optional

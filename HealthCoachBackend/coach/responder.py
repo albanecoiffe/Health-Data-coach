@@ -1,3 +1,10 @@
+# Rôle : génération de texte
+# Il transforme : {"distance": 129.2,"sessions": 14,"duration": 804}
+# en : "Sur cette période, tu as couru 129.2 km en 14 séances..."
+# Plus tard : templates, variantes
+# LLM local si tu veux
+
+
 from models import WeeklySnapshot
 from coach.intent_parser import Intent
 

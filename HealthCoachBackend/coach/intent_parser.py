@@ -1,3 +1,8 @@
+# Rôle : NLP — détecter l’intent
+# Exemples d’intents : SUMMARY, STATS, COMPARE, FATIGUE, HELP
+# Implémentation : règles, mots-clés
+# (plus tard TF-IDF ou LLM)
+
 from enum import Enum
 
 

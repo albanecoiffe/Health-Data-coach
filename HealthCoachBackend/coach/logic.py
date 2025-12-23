@@ -1,3 +1,10 @@
+# Rôle : règles métier
+# Exemples : comment formuler un résumé, comment comparer deux périodes, quelles stats afficher selon l’intent
+# Pas de NLP
+# Pas d’API
+# Juste de la logique pure
+
+
 from coach.intent_parser import Intent
 from models import WeeklySnapshot
 

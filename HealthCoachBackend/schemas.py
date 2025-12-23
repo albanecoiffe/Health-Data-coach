@@ -1,3 +1,9 @@
+# Rôle : modèles internes / réponses
+# Souvent utilisé pour : structurer des réponses propres, séparer ce qui est interne de ce qui est API
+# Exemple : ChatResponse, RequestSnapshotResponse
+# Tu peux voir ça comme des DTO backend.
+
+
 from __future__ import annotations
 
 from datetime import date
