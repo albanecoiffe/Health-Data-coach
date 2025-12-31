@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Allow Arbitrary Loads</key>
+	<true/>
+	<key>Privacy - Location Always and When In Use Usage Description
+</key>
+	<string>Cette application utilise la localisation pour les tracés GPS de vos séances.</string>
+	<key>Privacy - Location When In Use Usage Description
+Privacy - Location When In Use Usage Description
+Privacy - Location When In Use Usage Description
+</key>
+	<string>L’application a besoin de votre position pour afficher vos tracés GPS de course.</string>
+</dict>
+</plist>
