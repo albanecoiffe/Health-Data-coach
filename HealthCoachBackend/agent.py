@@ -221,6 +221,27 @@ Exemples :
   "left": "CURRENT_MONTH",
   "right": "PREVIOUS_MONTH"
 }}
+
+Si la question contient :
+- "ce mois par rapport au mois dernier"
+→
+{{
+        "type": "COMPARE_PERIODS",
+  "metric": "<metric>",
+  "left": "CURRENT_MONTH",
+  "right": "PREVIOUS_MONTH"
+}}
+
+Si la question contient :
+- "les deux dernières semaines"
+→
+{{
+        "type": "COMPARE_PERIODS",
+  "metric": "<metric>",
+  "left": "LAST_2_WEEKS",
+  "right": "PREVIOUS_2_WEEKS"
+}}
+
 ========================================
 QUESTION
 ========================================
@@ -355,50 +376,62 @@ def comparison_response_agent(
     prompt = f"""
 Tu es un coach de course à pied clair, précis et fiable.
 
-Tu disposes UNIQUEMENT des écarts suivants entre deux périodes :
-- Distance en PLUS ou en MOINS : {delta["distance_km"]} km
-- Durée en PLUS ou en MOINS : {delta["duration_min"]} minutes
-- Nombre de séances en PLUS ou en MOINS : {delta["sessions"]}
+Tu analyses une COMPARAISON entre deux périodes :
+{left_label} vs {right_label}
 
-IMPORTANT :
-- Ces valeurs sont des DIFFÉRENCES entre {left_label} et {right_label}
-- Une valeur positive signifie PLUS
-- Une valeur négative signifie MOINS
-- Ces chiffres NE SONT PAS des totaux
+Tu disposes UNIQUEMENT des écarts suivants (ce ne sont PAS des totaux) :
+- Distance : {delta["distance_km"]} km
+- Durée : {delta["duration_min"]} minutes
+- Séances : {delta["sessions"]}
+
+INTERPRÉTATION DES CHIFFRES :
+- Valeur positive → PLUS
+- Valeur négative → MOINS
+- Valeur proche de zéro → STABLE
 
 RÈGLES ABSOLUES :
 - Tu n’inventes AUCUN chiffre
-- Tu ne transformes PAS les valeurs
-- Tu ne compares PAS avec d’autres chiffres implicites
-- Tu ne fais AUCUNE supposition
+- Tu n’arrondis PAS autrement que ce qui est fourni
 - Tu n’expliques PAS comment les chiffres sont calculés
-- Tu ne dis JAMAIS "en moins de temps" si la durée est positive
+- Tu ne fais AUCUNE supposition
+- Tu n’emploies JAMAIS une formulation contradictoire
+  (ex: "moins de temps" si la durée est positive)
 
-STRUCTURE DE RÉPONSE ATTENDUE :
-1. Une phrase claire qui répond à la question
-2. Une phrase qui précise explicitement les écarts
+ADAPTATION À LA QUESTION :
+- Si la question est une QUESTION FERMÉE (oui / non),
+  commence par "Oui" ou "Non", puis explique.
+- Si la question est une DEMANDE DE COMPARAISON,
+  commence par un CONSTAT GLOBAL, sans "oui" ni "non".
 
-EXEMPLES (À RESPECTER STRICTEMENT) :
+STRUCTURE GÉNÉRALE :
+- 1 phrase de réponse principale adaptée à la question
+- 1 phrase qui précise distance, durée et séances
 
-Exemple 1 :
+EXEMPLES À SUIVRE STRICTEMENT :
+
+Exemple A — Question fermée :
+Question : "Ai-je couru plus cette semaine que la semaine dernière ?"
 Distance = +5 km, Durée = +30 min, Séances = +1
 →
 "Oui, tu as couru davantage. Tu as parcouru environ 5 km de plus, passé 30 minutes supplémentaires à courir et ajouté une séance."
 
-Exemple 2 :
+Exemple B — Question fermée :
 Distance = -3 km, Durée = -20 min, Séances = -1
 →
 "Non, ton volume est un peu plus bas. Tu as couru environ 3 km de moins, passé 20 minutes de moins à courir et fait une séance en moins."
 
-Exemple 3 :
+Exemple C — Demande de comparaison :
+Question : "Compare ce mois avec le mois dernier"
+Distance = -95.9 km, Durée = -634 min, Séances = -12
+→
+"Ce mois-ci, ton volume est nettement plus bas. Tu as couru environ 95.9 km de moins, passé 634 minutes de moins à courir et effectué 12 séances en moins."
+
+Exemple D — Situation stable :
 Distance = +0.5 km, Durée = +2 min, Séances = 0
 →
-"C’est très proche de la semaine précédente, avec seulement un léger surplus de distance et de temps."
+"C’est très proche de la période précédente, avec seulement un léger surplus de distance et de temps, et un nombre de séances identique."
 
 QUESTION UTILISATEUR :
 "{message}"
-
-Comparaison :
-{left_label} vs {right_label}
 """
     return call_ollama(prompt)

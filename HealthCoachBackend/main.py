@@ -52,9 +52,7 @@ def chat(req: ChatRequest):
 
         left = req.snapshots.left
         right = req.snapshots.right
-        metric = req.meta.get("metric", "DISTANCE")
 
-        diff = compare_snapshots(left, right, metric)
         delta = {
             "distance_km": round(left.totals.distance_km - right.totals.distance_km, 1),
             "duration_min": round(left.totals.duration_min - right.totals.duration_min),
@@ -63,10 +61,10 @@ def chat(req: ChatRequest):
 
         reply = comparison_response_agent(
             message=req.message,
-            metric=metric,
+            metric=req.meta.get("metric", "DISTANCE"),
             delta=delta,
-            left_label="cette semaine",
-            right_label="la semaine dernière",
+            left_label=req.meta.get("left_label", "période 1"),
+            right_label=req.meta.get("right_label", "période 2"),
         )
 
         return {"reply": reply}
@@ -225,6 +223,13 @@ def chat(req: ChatRequest):
         left_start, left_end = period_to_dates(decision["left"])
         right_start, right_end = period_to_dates(decision["right"])
 
+        LABELS = {
+            "CURRENT_WEEK": "cette semaine",
+            "PREVIOUS_WEEK": "la semaine dernière",
+            "CURRENT_MONTH": "ce mois-ci",
+            "PREVIOUS_MONTH": "le mois dernier",
+        }
+
         return {
             "type": "REQUEST_SNAPSHOT_BATCH",
             "snapshots": {
@@ -239,7 +244,8 @@ def chat(req: ChatRequest):
             },
             "meta": {
                 "metric": metric,
-                "comparison": f"{decision['left']}_VS_{decision['right']}",
+                "left_label": LABELS.get(decision["left"], "période 1"),
+                "right_label": LABELS.get(decision["right"], "période 2"),
             },
         }
 
