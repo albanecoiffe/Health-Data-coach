@@ -1,13 +1,22 @@
 import Foundation
 import Combine
 
-struct CoachResponse: Codable {
-    let reply: String
+struct SnapshotRange: Codable {
+    let start: String
+    let end: String
 }
+
+struct SnapshotBatchPayload: Codable {
+    let left: SnapshotRange
+    let right: SnapshotRange
+}
+
 struct CoachAPIResponse: Codable {
     let reply: String?
     let type: String?
     let period: PeriodPayload?
+    let snapshots: SnapshotBatchPayload?
+    let meta: [String: String]?
 }
 
 struct PeriodPayload: Codable {
@@ -95,6 +104,36 @@ class ChatViewModel: ObservableObject {
             if let reply = decoded.reply {
                 return reply
             }
+            
+            // 🟣 Demande de comparaison (batch)
+            if decoded.type == "REQUEST_SNAPSHOT_BATCH",
+               let batch = decoded.snapshots,
+               let meta = decoded.meta {
+
+                let formatter = DateFormatter()
+                formatter.dateFormat = "yyyy-MM-dd"
+
+                guard
+                    let leftStart = formatter.date(from: batch.left.start),
+                    let leftEnd = formatter.date(from: batch.left.end),
+                    let rightStart = formatter.date(from: batch.right.start),
+                    let rightEnd = formatter.date(from: batch.right.end)
+                else {
+                    return "Erreur période comparaison"
+                }
+
+                return await requestSnapshotBatchAndRetry(
+                    message: message,
+                    leftStart: leftStart,
+                    leftEnd: leftEnd,
+                    rightStart: rightStart,
+                    rightEnd: rightEnd,
+                    meta: meta
+                )
+            }
+
+
+
 
             // 🟠 Demande d’un autre snapshot
             if decoded.type == "REQUEST_SNAPSHOT",
@@ -150,6 +189,28 @@ class ChatViewModel: ObservableObject {
             return "Erreur serveur."
         }
     }
+    
+    private func sendPayloadRaw(_ payload: ChatRequest) async -> CoachAPIResponse? {
+        guard let url = URL(string: "http://192.168.1.77:8000/chat") else {
+            return nil
+        }
+
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        do {
+            let encoder = JSONEncoder()
+            encoder.keyEncodingStrategy = .convertToSnakeCase
+            req.httpBody = try encoder.encode(payload)
+
+            let (data, _) = try await URLSession.shared.data(for: req)
+            return try JSONDecoder().decode(CoachAPIResponse.self, from: data)
+        } catch {
+            return nil
+        }
+    }
+
 
     
     func requestSnapshotAndRetry(
@@ -173,6 +234,46 @@ class ChatViewModel: ObservableObject {
             }
         }
     }
+    
+    func requestSnapshotBatchAndRetry(
+        message: String,
+        leftStart: Date,
+        leftEnd: Date,
+        rightStart: Date,
+        rightEnd: Date,
+        meta: [String: String]
+    ) async -> String? {
+
+        await withCheckedContinuation { continuation in
+
+            healthManager.makeSnapshot(from: leftStart, to: leftEnd) { leftSnapshot in
+                self.healthManager.makeSnapshot(from: rightStart, to: rightEnd) { rightSnapshot in
+
+                    Task {
+                        let payload = ChatRequest(
+                            message: message,
+                            snapshot: self.healthManager.makeWeeklySnapshot(),
+                            snapshots: [
+                                "left": leftSnapshot,
+                                "right": rightSnapshot
+                            ],
+                            meta: meta
+                        )
+
+                        // 🔑 IMPORTANT : RAW
+                        let decoded = await self.sendPayloadRaw(payload)
+
+                        continuation.resume(
+                            returning: decoded?.reply ?? "Erreur comparaison."
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+
+
 
 
 }

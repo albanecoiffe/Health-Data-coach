@@ -1,36 +1,8 @@
 import json
 from datetime import date, timedelta
-from llm import call_ollama
-
-SYSTEM_COACH_PROMPT = """
-Tu es un coach de course à pied intelligent et professionnel.
-
-RÈGLES STRICTES :
-- Tu analyses les données UNIQUEMENT si la question de l'utilisateur est claire et explicite.
-- Si le message est vague, ambigu ou une simple salutation
-  (ex: "hello", "salut", "bonjour", "ok", "ça va ?"),
-  tu NE DOIS PAS analyser les statistiques.
-- Dans ce cas, tu dois répondre brièvement
-  en demandant ce que l'utilisateur souhaite analyser.
-- Si la période déjà fournie CORRESPOND EXACTEMENT à la période demandée
-  retourne ANSWER_NOW.
-
-
-Exemples de questions claires :
-- "Est-ce que je cours trop vite ?"
-- "Fais-moi un résumé de la semaine"
-- "Est-ce que je progresse ?"
-
-Exemples de réponses attendues si la question est vague :
-- "Salut 👋 Que veux-tu analyser : ton rythme, ton volume ou ta récupération ?"
-- "Dis-moi ce que tu aimerais comprendre sur tes entraînements."
-
-Sois concis, clair et bienveillant.
-Ne fais jamais d'analyse spontanée sans intention explicite.
-"""
-
+from services.llm import call_ollama
+import calendar
 import json
-from llm import call_ollama
 
 
 def analyze_question(message: str, current_period: tuple[str, str]) -> dict:
@@ -180,11 +152,75 @@ Retourne :
 }}
 
 ========================================
+NORMALISATION DES MÉTRIQUES (OBLIGATOIRE)
+========================================
+
+Tu DOIS utiliser UNIQUEMENT les métriques suivantes :
+
+- DISTANCE
+- DURATION
+- SESSIONS
+- AVG_HR
+- PACE
+- ELEVATION
+- LOAD
+- UNKNOWN
+
+INTERDIT ABSOLUMENT :
+- TIME
+- TEMPS
+- HOURS
+- MINUTES
+- KMH
+- SPEED
+
+RÈGLE :
+- "temps", "durée", "time", "heures", "minutes" → DURATION
+- "km", "kilomètres", "distance" → DISTANCE
+- "séances", "entraînements" → SESSIONS
+
+Si tu n’es pas sûr → UNKNOWN
+
+========================================
 MÉTRIQUES POSSIBLES
 ========================================
 
 DISTANCE | DURATION | SESSIONS | AVG_HR | PACE | ELEVATION | LOAD | UNKNOWN
 
+========================================
+2️⃣ COMPARAISONS (PRIORITÉ HAUTE)
+========================================
+
+Si la question compare deux périodes
+(ex: "plus que", "moins que", "autant que", "comparé à", "par rapport à") :
+
+Retourne :
+{{
+  "type": "COMPARE_PERIODS",
+  "metric": "<métrique détectée>",
+  "left": "<période A>",
+  "right": "<période B>"
+}}
+
+Exemples :
+
+"Est-ce que j’ai couru plus que la semaine dernière ?"
+→
+{{
+        "type": "COMPARE_PERIODS",
+  "metric": "DISTANCE",
+  "left": "CURRENT_WEEK",
+  "right": "PREVIOUS_WEEK"
+}}
+
+"Est-ce que je fais plus de séances ce mois-ci ?"
+→
+{{
+        "type": "COMPARE_PERIODS",
+  "metric": "SESSIONS",
+  "left": "CURRENT_MONTH",
+  "right": "PREVIOUS_MONTH"
+}}
 ========================================
 QUESTION
 ========================================
