@@ -343,3 +343,62 @@ def safe_parse_json(raw: str) -> dict | None:
         return json.loads(raw[start:end])
     except Exception:
         return None
+
+
+def comparison_response_agent(
+    message: str,
+    metric: str,
+    delta: dict,
+    left_label: str,
+    right_label: str,
+) -> str:
+    prompt = f"""
+Tu es un coach de course à pied clair, précis et fiable.
+
+Tu disposes UNIQUEMENT des écarts suivants entre deux périodes :
+- Distance en PLUS ou en MOINS : {delta["distance_km"]} km
+- Durée en PLUS ou en MOINS : {delta["duration_min"]} minutes
+- Nombre de séances en PLUS ou en MOINS : {delta["sessions"]}
+
+IMPORTANT :
+- Ces valeurs sont des DIFFÉRENCES entre {left_label} et {right_label}
+- Une valeur positive signifie PLUS
+- Une valeur négative signifie MOINS
+- Ces chiffres NE SONT PAS des totaux
+
+RÈGLES ABSOLUES :
+- Tu n’inventes AUCUN chiffre
+- Tu ne transformes PAS les valeurs
+- Tu ne compares PAS avec d’autres chiffres implicites
+- Tu ne fais AUCUNE supposition
+- Tu n’expliques PAS comment les chiffres sont calculés
+- Tu ne dis JAMAIS "en moins de temps" si la durée est positive
+
+STRUCTURE DE RÉPONSE ATTENDUE :
+1. Une phrase claire qui répond à la question
+2. Une phrase qui précise explicitement les écarts
+
+EXEMPLES (À RESPECTER STRICTEMENT) :
+
+Exemple 1 :
+Distance = +5 km, Durée = +30 min, Séances = +1
+→
+"Oui, tu as couru davantage. Tu as parcouru environ 5 km de plus, passé 30 minutes supplémentaires à courir et ajouté une séance."
+
+Exemple 2 :
+Distance = -3 km, Durée = -20 min, Séances = -1
+→
+"Non, ton volume est un peu plus bas. Tu as couru environ 3 km de moins, passé 20 minutes de moins à courir et fait une séance en moins."
+
+Exemple 3 :
+Distance = +0.5 km, Durée = +2 min, Séances = 0
+→
+"C’est très proche de la semaine précédente, avec seulement un léger surplus de distance et de temps."
+
+QUESTION UTILISATEUR :
+"{message}"
+
+Comparaison :
+{left_label} vs {right_label}
+"""
+    return call_ollama(prompt)

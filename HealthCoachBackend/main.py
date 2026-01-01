@@ -1,10 +1,17 @@
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from services.snapshots import load_snapshots_for_comparison
-from services.periods import period_to_dates
+
 from schemas import ChatRequest
-from agent import analyze_question, answer_with_snapshot, factual_response
+from agent import (
+    analyze_question,
+    answer_with_snapshot,
+    factual_response,
+    comparison_response_agent,
+)
+
+from services.periods import period_to_dates
+from services.comparisons import compare_snapshots
 
 from datetime import date, timedelta
 import calendar
@@ -12,6 +19,9 @@ import calendar
 app = FastAPI()
 
 
+# ======================================================
+# ❌ HANDLER ERREUR VALIDATION
+# ======================================================
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     print("❌ ERREUR DE VALIDATION FASTAPI")
@@ -25,6 +35,9 @@ def root():
     return {"status": "ok"}
 
 
+# ======================================================
+# 💬 ENDPOINT CHAT
+# ======================================================
 @app.post("/chat")
 def chat(req: ChatRequest):
     print("\n================= CHAT =================")
@@ -32,7 +45,7 @@ def chat(req: ChatRequest):
 
     # ======================================================
     # 🔴 COMPARAISON FINALE — PRIORITÉ ABSOLUE
-    # ⚠️ Si snapshots + meta sont présents → PAS DE LLM
+    # ⚠️ snapshots + meta présents → AUCUN LLM DE DÉCISION
     # ======================================================
     if req.snapshots is not None and req.meta is not None:
         print("🟢 COMPARAISON FINALE — SNAPSHOTS PRÉSENTS")
@@ -41,26 +54,25 @@ def chat(req: ChatRequest):
         right = req.snapshots.right
         metric = req.meta.get("metric", "DISTANCE")
 
-        from services.comparisons import compare_snapshots
-
         diff = compare_snapshots(left, right, metric)
-
-        if diff > 0:
-            trend = "plus"
-        elif diff < 0:
-            trend = "moins"
-        else:
-            trend = "autant"
-
-        return {
-            "reply": (
-                f"Tu as couru {trend} de distance cette semaine "
-                f"que la semaine dernière."
-            )
+        delta = {
+            "distance_km": round(left.totals.distance_km - right.totals.distance_km, 1),
+            "duration_min": round(left.totals.duration_min - right.totals.duration_min),
+            "sessions": left.totals.sessions - right.totals.sessions,
         }
 
+        reply = comparison_response_agent(
+            message=req.message,
+            metric=metric,
+            delta=delta,
+            left_label="cette semaine",
+            right_label="la semaine dernière",
+        )
+
+        return {"reply": reply}
+
     # ======================================================
-    # 🔵 SINON → FLOW NORMAL (LLM AUTORISÉ)
+    # 🔵 FLOW NORMAL — ANALYSE LLM AUTORISÉE
     # ======================================================
     print(
         "📦 SNAPSHOT :",
@@ -80,11 +92,10 @@ def chat(req: ChatRequest):
         or "semaine en cours" in req.message.lower()
         or "semaine actuelle" in req.message.lower()
     ):
-        metric = decision.get("metric") or "DISTANCE"
         decision = {
             "type": "ANSWER_NOW",
             "answer_mode": "FACTUAL",
-            "metric": metric,
+            "metric": decision.get("metric") or "DISTANCE",
         }
         print("🛡️ OVERRIDE BACKEND → cette semaine = ANSWER_NOW (FACTUAL)")
 
@@ -107,25 +118,21 @@ def chat(req: ChatRequest):
 
         today = date.today()
         week_start = today - timedelta(days=today.weekday())
-        requested_start = week_start + timedelta(days=7 * offset)
-        requested_end = requested_start + timedelta(days=7)
+        start = week_start + timedelta(days=7 * offset)
+        end = start + timedelta(days=7)
 
-        print("\n📆 CALCUL SEMAINE")
-        print("📅 TARGET_WEEK :", requested_start, "→", requested_end)
+        print("📆 TARGET_WEEK :", start, "→", end)
 
         if (
-            req.snapshot.period.start == requested_start.isoformat()
-            and req.snapshot.period.end == requested_end.isoformat()
+            req.snapshot.period.start == start.isoformat()
+            and req.snapshot.period.end == end.isoformat()
         ):
             print("✅ SEMAINE DÉJÀ CHARGÉE → FACTUAL")
             return factual_response(req.snapshot, metric)
 
         return {
             "type": "REQUEST_SNAPSHOT",
-            "period": {
-                "start": requested_start.isoformat(),
-                "end": requested_end.isoformat(),
-            },
+            "period": {"start": start.isoformat(), "end": end.isoformat()},
             "meta": {"metric": metric},
         }
 
@@ -171,7 +178,6 @@ def chat(req: ChatRequest):
     # 🟠 REQUEST_MONTH_RELATIVE
     # ======================================================
     if decision_type == "REQUEST_MONTH_RELATIVE":
-        raw_offset = decision.get("offset")
         msg = req.message.lower()
 
         if "ce mois" in msg:
@@ -179,7 +185,7 @@ def chat(req: ChatRequest):
         elif "mois dernier" in msg:
             offset = -1
         else:
-            offset = int(raw_offset or -1)
+            offset = int(offset or -1)
 
         today = date.today()
         target_month = today.month + offset
@@ -232,7 +238,7 @@ def chat(req: ChatRequest):
                 },
             },
             "meta": {
-                "metric": decision["metric"],
+                "metric": metric,
                 "comparison": f"{decision['left']}_VS_{decision['right']}",
             },
         }
